@@ -55,9 +55,12 @@ class Main {
         Benchmarks bench = new Benchmarks();
         bench.insertBenchmark();
         bench.deleteBenchmark();
-        bench.updateBenchmark("A"); // indexing the primary column
-        bench.updateBenchmark("B"); // indexing the secondary column
+        //bench.updateBenchmark("A"); // indexing the primary column
+        //bench.updateBenchmark("B"); // indexing the secondary column
         bench.updateBenchmark("C"); // indexing the unindexed column
+        bench.filterClusteredIndexBenchmark();
+        bench.filterSecondaryIndexBenchmark();
+        bench.filterBenchmark();
         bench.finish();
     }
 }

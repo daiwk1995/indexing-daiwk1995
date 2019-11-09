@@ -28,7 +28,7 @@ run: default
 
 register:
 ifeq ($(HOST), dontbuildbplustrees.please)
-	@sqlite3 /home/franco/benchmarks.db < benchmarks/results/benchmark_results.sql
+	@sqlite3 /home/benchmarks/benchmarks.db < benchmarks/results/benchmark_results.sql
 	@echo Registered into sqlitedb
 else
 	@echo "You aren't logged into the Linode machine so you can't register this benchmark"
@@ -36,7 +36,7 @@ endif
 
 query:
 ifeq ($(HOST), dontbuildbplustrees.please)
-	@sqlite3 /home/franco/benchmarks.db < benchmarks/query.sql
+	@sqlite3 /home/benchmarks/benchmarks.db < benchmarks/query.sql
 else
 	@echo "You aren't logged into the Linode machine so you can't query the benchmark db"
 endif

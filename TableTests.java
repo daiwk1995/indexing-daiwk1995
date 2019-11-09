@@ -21,11 +21,11 @@ public class TableTests {
         a.add("C");
 
         table = new Table("test_table", a);
-        table.setClusteredIndex("A");
-        table.setSecondaryIndex("B");
         reader = new CSVReader("data_validation/data");
         Vector<Tuple> tup = reader.read();
         table.load(tup);
+        table.setClusteredIndex("A");
+        table.setSecondaryIndex("B");
         this.attributes = a;
         this.generator = new Random();
     }
@@ -83,6 +83,11 @@ public class TableTests {
         TupleIDSet intermediate = table.filter(filter);
         table.update("B", intermediate, 2000);
 
+        // need to recreate the indexes because we don't require students to
+        // update the index
+        table.setClusteredIndex("A");
+        table.setSecondaryIndex("B");
+
         MaterializedResults results = table.materialize(attributes, null);
         TupleCollection tuples = new TupleCollection();
         for (Tuple t : results) {
@@ -97,6 +102,11 @@ public class TableTests {
         TupleIDSet intermediate = table.filter(filter);
 
         table.delete(intermediate);
+
+        // need to recreate the indexes because we don't require students to
+        // update the index
+        table.setClusteredIndex("A");
+        table.setSecondaryIndex("B");
 
         HashSet<String> attributes = new HashSet<String>();
         attributes.add("A");

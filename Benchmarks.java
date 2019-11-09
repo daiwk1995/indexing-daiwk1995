@@ -10,6 +10,8 @@ public class Benchmarks {
     Random generator;
     Integer iterations;
     Integer dataSize;
+    HashMap<String, Integer> maxValues;
+    HashMap<String, Integer> minValues;
     Long startTime;
     String banner;
     LocalDateTime currentTime;
@@ -28,8 +30,10 @@ public class Benchmarks {
     public Benchmarks() {
         generator = new Random();
         generator.setSeed(12345);
-        iterations = 100;
+        iterations = 1000;
         dataSize = 1000;
+        maxValues = new HashMap<String, Integer>();
+        minValues = new HashMap<String, Integer>();
         banner = new Main().bannerid;
         currentTime = LocalDateTime.now(ZoneId.of("America/New_York"));
     }
@@ -64,10 +68,24 @@ public class Benchmarks {
         a.add("A");
         a.add("B");
         a.add("C");
+        // reset max min data because new table
+        maxValues = new HashMap<String, Integer>();
+        minValues = new HashMap<String, Integer>();
         Table t = new Table("test_table", a);
-        t.setClusteredIndex("A");
-        t.setSecondaryIndex("B");
         return t;
+    }
+
+    void updateMaxMin(String attr, Integer val) {
+        Integer max = maxValues.get(attr);
+        Integer min = minValues.get(attr);
+        if (max == null) {
+            maxValues.put(attr, val);
+            minValues.put(attr, val);
+        } else if (max < val) {
+            maxValues.put(attr, val);
+        } else if (min > val) {
+            minValues.put(attr, val);
+        }
     }
 
     Vector<Tuple> setupTuples() {
@@ -75,9 +93,19 @@ public class Benchmarks {
 
         for (Integer i = 0; i < dataSize; ++i) {
             Tuple t = new Tuple();
-            t.put("A", generator.nextInt());
-            t.put("B", generator.nextInt());
-            t.put("C", generator.nextInt());
+
+            Integer A = generator.nextInt();
+            updateMaxMin("A", A);
+
+            Integer B = generator.nextInt();
+            updateMaxMin("B", B);
+
+            Integer C = generator.nextInt();
+            updateMaxMin("C", C);
+
+            t.put("A", A);
+            t.put("B", B);
+            t.put("C", C);
             v.add(t);
         }
 
@@ -114,6 +142,142 @@ public class Benchmarks {
         Float s = Float.valueOf(sum);
         Float iter = Float.valueOf(iterations);
         printDuration("bulkload", s/iter);
+    }
+
+    void filterWarmup(Table t) throws Exception {
+        System.gc();
+        Set<String> cols = new HashSet<String>();
+        cols.add("A");
+        cols.add("B");
+        cols.add("C");
+
+        for (Integer i = 0; i < iterations; ++i) {
+            Integer x = generator.nextInt();
+            Integer y = generator.nextInt();
+
+            Integer low = x;
+            Integer high = y;
+            if (low > high) {
+                low = y;
+                high = x;
+            }
+
+            Filter f = new Filter("B", low, high);
+            TupleIDSet pl = t.filter(f);
+            t.materialize(cols, pl);
+        }
+    }
+
+    public void filterBenchmark() throws Exception {
+        Long sum = Long.valueOf(0);
+        Table t = setupTable();
+
+        Vector<Tuple> v = setupTuples();
+        t.load(v);
+
+        Set<String> cols = new HashSet<String>();
+        cols.add("A");
+        cols.add("B");
+        cols.add("C");
+
+        filterWarmup(t);
+        for (Integer i = 0; i < iterations; ++i) {
+            Integer x = generator.nextInt();
+            Integer y = generator.nextInt();
+
+            Integer low = x;
+            Integer high = y;
+            if (low > high) {
+                low = y;
+                high = x;
+            }
+
+            Filter f = new Filter("B", low, high);
+            startTimer();
+            TupleIDSet pl = t.filter(f);
+            t.materialize(cols, pl);
+            sum += endTimer();
+        }
+
+        Float s = Float.valueOf(sum);
+        Float iter = Float.valueOf(iterations);
+        printDuration("filter no index", s/iter);
+    }
+
+
+    public void filterSecondaryIndexBenchmark() throws Exception {
+        Long sum = Long.valueOf(0);
+        Table t = setupTable();
+
+        Vector<Tuple> v = setupTuples();
+        t.load(v);
+        t.setClusteredIndex("A");
+        t.setClusteredIndex("B");
+
+        Set<String> cols = new HashSet<String>();
+        cols.add("A");
+        cols.add("B");
+        cols.add("C");
+
+        filterWarmup(t);
+        for (Integer i = 0; i < iterations; ++i) {
+            Integer x = generator.nextInt();
+            Integer y = generator.nextInt();
+
+            Integer low = x;
+            Integer high = y;
+            if (low > high) {
+                low = y;
+                high = x;
+            }
+
+            Filter f = new Filter("B", low, high);
+            startTimer();
+            TupleIDSet pl = t.filter(f);
+            t.materialize(cols, pl);
+            sum += endTimer();
+        }
+
+        Float s = Float.valueOf(sum);
+        Float iter = Float.valueOf(iterations);
+        printDuration("filter secondary index", s/iter);
+    }
+
+    public void filterClusteredIndexBenchmark() throws Exception {
+        Long sum = Long.valueOf(0);
+        Table t = setupTable();
+
+        Vector<Tuple> v = setupTuples();
+        t.load(v);
+        t.setClusteredIndex("A");
+
+        Set<String> cols = new HashSet<String>();
+        cols.add("A");
+        cols.add("B");
+        cols.add("C");
+
+        filterWarmup(t);
+        for (Integer i = 0; i < iterations; ++i) {
+            Integer x = generator.nextInt();
+            Integer y = generator.nextInt();
+
+            Integer low = x;
+            Integer high = y;
+            if (low > high) {
+                low = y;
+                high = x;
+            }
+
+            Filter f = new Filter("A", low, high);
+            startTimer();
+            TupleIDSet pl = t.filter(f);
+            t.materialize(cols, pl);
+            sum += endTimer();
+        }
+
+        Float s = Float.valueOf(sum);
+        Float iter = Float.valueOf(iterations);
+        printDuration("filter clustered index", s/iter);
     }
 
     public void deleteBenchmark() {
@@ -166,7 +330,6 @@ public class Benchmarks {
             startTimer();
             x.update(col, tuples, value);
             sum += endTimer();
-
         }
 
         Float s = Float.valueOf(sum);
