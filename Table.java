@@ -3,6 +3,15 @@ import java.util.*;
 // DO NOT CHANGE THE METHOD SIGNATURE FOR THE METHODS WE GIVE YOU BUT YOU MAY
 // CHANGE THE METHOD'S IMPLEMENTATION
 
+class idx_pair {
+    public Integer key;
+    public Integer value;
+    public idx_pair(Integer key, Integer value){
+        this.key = key;
+        this.value = value;
+    }
+}
+
 public class Table {
 
     String name = "This is table";
@@ -19,7 +28,47 @@ public class Table {
         }
     }
 
-    public void setClusteredIndex(String attribute) { }
+    public void setClusteredIndex(String attribute) {
+        Column old_col = attributes.get(attribute);
+        idx_pair[] original = new idx_pair[old_col.size()];
+        for(Integer i = 0; i < old_col.size(); i++){
+            original[i] = new idx_pair(old_col.get(i), i);
+        }
+        original.sort(Comparator.comparingInt(a -> a.key));
+        Column new_col = new Column();
+        new_col.setSize(old_col.size());
+        Hashtable<Integer, Integer> new_to_old;
+        for(Intger i = 0; i < old_col.size(); i++){
+            new_to_old.put(i,original[i].value);
+            new_col.set(i, original[i].key);
+        }
+
+        attributes.replace(attribute,new_col);
+
+        for (String attribute_name : attributes.keySet()) {
+            if (att_name.equals(attribute)){
+                continue;
+            }
+            Column other_attribute = attributes.get(attribute_name);
+            Column temp = new Column();
+            temp.setSize(other_attribute.size());
+            for (Integer i = 0; i < other_attribute.size(); i++) {
+                Integer old_idx = new_to_old.get(i);
+                temp.set(i, other_attribute.get(old_idx));
+            }
+            attributes.replace(attribute_name, temp);
+        }
+
+        pre = null;
+        for (Integer i = 0; i < new_col.size(); i++) {
+            if (!new_col.get(i).equals(pre)) {
+                clustered_index.insert(new_col.get(i), i);
+            }
+            pre = new_col.get(i);
+        }
+
+
+    }
     public void setSecondaryIndex(String attribute) { }
 
     // Insert a tuple into the Table
