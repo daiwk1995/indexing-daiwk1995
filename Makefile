@@ -17,6 +17,10 @@ testtable: default
 	@java -ea Main -testtable
 	@data_validation/compare.sh
 
+testtable-python: default
+	@java -ea Main -testtable
+	@cd data_validation; python3 compare_csv.py
+
 testtree: default
 	@java -ea Main -testtree
 
