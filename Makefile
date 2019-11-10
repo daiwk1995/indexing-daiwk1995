@@ -15,7 +15,7 @@ classes: $(CLASSES:.java=.class)
 
 testtable: default
 	@java -ea Main -testtable
-	@data_validation/compare.sh
+	@(cd data_validation; python3 compare_csv.py) || data_validation/compare.sh
 
 testtree: default
 	@java -ea Main -testtree
