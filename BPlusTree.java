@@ -8,23 +8,40 @@ public class BPlusTree {
 
     // A tree has a root node, and an order
     public Node root;
+    public Integer order;
 
     // Required methods to implement. DO NOT change the function signatures of
     // these methods.
 
     // Instantiate a BPlusTree with a specific order
-    public BPlusTree(Integer order) { }
+    public BPlusTree(Integer order) {
+        this.order = order;
+        this.root = new LNode(order);
+    }
 
     // Given a key, returns the value associated with that key or null if doesnt
     // exist
-    public Integer get(Integer key) { return null; }
+    public Integer get(Integer key) {
+        return this.root.get(key);
+    }
 
     // Insert a key-value pair into the tree. This tree does not need to support
     // duplicate keys
-    public void insert(Integer key, Integer value) { }
+    public void insert(Integer key, Integer value) {
+        Split root_split = this.root.insert(key, value);
+        if  (root_split != null) {
+            INode new_root = new INode(order, root_split);
+            this.root = new_root;
+        }
+    }
 
     // Delete a key and its value from the tree
-    public void delete(Integer key) { }
+    public void delete(Integer key) {
+        root.delete(key);
+        if ((root.numChildren == 1) && (root.nt == NodeType.INTERNAL)) {
+            this.root = ((INode)root).children[0];
+        }
+    }
 
     // Optional methods to write
     // This might be a helpful function for your debugging needs
@@ -75,13 +92,38 @@ abstract class Node {
 
     // You may edit everything that occurs in this class below this line.
     // *********************************************************************
-
+    public Integer order;
+    public INode parent;
+    public Node rightSibling;
+    public NodeType nt;
     // Both leaves and nodes need to keep track of a few things:
     //      their parent
     //      a way to tell another class whether it is a leaf or a node
 
     // A node is instantiated by giving it an order, and a node type
-    public Node(Integer order, NodeType nt) { }
+    public Node(Integer order, NodeType nt) {
+        this.order = order;
+        this.numChildren = 0;
+        this.parent = null;
+        this.keys = new Integer[order];
+        this.nt = nt;
+    }
+
+    public void setParent(INode node){
+        this.parent = node;
+    }
+
+    public Integer mid(){
+        return this.order/2;
+    }
+    /*
+    public NodeType nodeType(){
+        return this.nt;
+    }*/
+
+    void setRightSibling(Node r){
+        this.rightSibling = r;
+    }
 
     // A few things both leaves and internal nodes need to do. You are likely
     // going to need to implement these functions. Our correctness checks rely
@@ -91,36 +133,36 @@ abstract class Node {
     // You might find that printing your nodes' contents might be helpful in
     // debugging. The function signature here assumes spaces are used to
     // indicate the level in the tree.
-    // abstract void print(Integer nspaces);
+    //abstract void print(Integer nspaces);
 
     // You might want to implement a search method to search for the
     // corresponding position of a given key in the node
-    // abstract Integer search(Integer key);
+    abstract Integer search(Integer key);
 
     // You might want to implement a split method for nodes that need to split.
     // We use the split class defined above to encapsulate the information
     // resulting from the split.
-    // abstract Split split();          // Note the use of split here
+    abstract Split split();          // Note the use of split here
 
     // You might want to implement an insert method. We use the Split class to
     // indicate whether a node split as a result of an insert because splits in
     // lower levels of the tree may propagate upward.
-    // abstract Split insert(Integer key, Integer value); // And split here
+    abstract Split insert(Integer key, Integer value); // And split here
 
     // You might want to implement a delete method that traverses down the tree
     // calling a child's delete method until you hit the leaf.
-    // abstract void delete(Integer key);
+    abstract void delete(Integer key);
 
     // You might want to implement a get method that behaves similar to the
     // delete method. Here, the get method recursively calls the child's get
     // method and returns the integer up the recursion.
-    // abstract Integer get(Integer key);
+    abstract Integer get(Integer key);
 
     // You might want to implement a helper function that cleans up a node. Note
     // that the keys, values, and children of a node should be null if it is
     // invalid. Java's memory manager won't garbage collect if there are
     // references hanging about.
-    // abstract void cleanEntries();
+    abstract void cleanEntries();
 }
 
 // A leaf node (LNode) is an instance of a Node
@@ -146,8 +188,122 @@ class LNode extends Node {
         // Because this is also a Node, we instantiate the Node (abstract)
         // superclass, identifying itself as a leaf.
         super(order, NodeType.LEAF);
-
+        this.rightSibling = null;
+        this.values = new Integer[order];
         // A leaf needs to instantiate the values array.
+    }
+    /*
+    public void print(Integer nspaces){
+        String k = Arrays.toString(this.keys);
+        String v = Arrays.toString(this.values);
+        String space = new String(new char[nspaces]).replace("\0", " ");
+        System.out.println(spaces
+                + "Leaf: N: "
+                + this.num
+                + " Keys: "
+                + k
+                + " Values: "
+                + v);
+    }*/
+
+    // search the idx for the new key
+    public Integer search(Integer key){
+        for (Integer i = 0; i < this.numChildren; i++) {
+            if (keys[i] >= key) {
+                return i;
+            }
+        }
+        return this.numChildren;
+    }
+
+    public Integer get(Integer key){
+        for (Integer i = 0; i < this.numChildren; i++) {
+            if (this.keys[i] == key) {
+                return this.values[i];
+            }
+        }
+        return null;
+    }
+
+    //split the array into two different array
+    Split<LNode> split() {
+        LNode right = new LNode(this.order);
+        Integer mid = this.mid();
+        Integer num = this.numChildren - mid;
+        System.arraycopy(this.keys, mid, right.keys, 0, num);
+        System.arraycopy(this.values, mid, right.values, 0, num);
+
+        right.numChildren = num;
+        this.numChildren = mid;
+
+        if (this.rightSibling != null) {
+            right.setRightSibling(this.rightSibling);
+        }
+        this.setRightSibling(right);
+
+        Split<LNode> split = new Split<LNode>(keys[mid], this, right);
+
+        this.cleanEntries();
+        right.cleanEntries();
+        return split;
+    }
+
+    //insert the new key and value
+    public Split insert(Integer key, Integer value) {
+        Integer idx = search(key);
+
+        // if idx not in keys, we just add a new key and value;
+        if (idx == this.numChildren) {
+            this.keys[idx] = key;
+            this.values[idx] = value;
+            this.numChildren++;
+        }
+
+        // if key already in the array, replace the value;
+        else if (keys[idx] == key) { values[idx] = value; }
+
+        // if the key not in array and key < keys[idx],shift it
+        else {
+
+            Integer num = this.numChildren - idx;
+            System.arraycopy(keys, idx, keys, idx+1, num);
+            System.arraycopy(values, idx, values, idx+1, num);
+
+            keys[idx] = key;
+            values[idx] = value;
+            this.numChildren++;
+        }
+
+        if (this.numChildren == this.order) { return this.split(); }
+
+        return null;
+
+    }
+    //keep the array and clean it
+    public void cleanEntries() {
+        for (Integer i = 0; i < this.order; i++) {
+            if (i < this.numChildren) { continue; }
+            else {
+                keys[i] = null;
+                values[i] = null;
+            }
+        }
+    }
+
+    //delete the key and value in the array
+    public void delete(Integer key) {
+        Integer idx = this.search(key);
+
+        if (keys[idx] != key) {
+            return;
+        }
+
+        Integer num = this.numChildren - (idx + 1);
+        System.arraycopy(keys, idx+1, keys, idx, num);
+        System.arraycopy(values, idx+1, values, idx, num);
+        this.numChildren--;
+
+        this.cleanEntries();
     }
 }
 
@@ -172,16 +328,171 @@ class INode extends Node {
 
     // You may edit everything that occurs in this class below this line.
     // *************************************************************************
-
     // A leaf node is instantiated with an order
     public INode(Integer order) {
+        super(order, NodeType.INTERNAL);
+        this.rightSibling = null;
+        this.children = new Node[order+1];
+    }
+
+    public INode(Integer order, Split split) {
 
         // Because this is also a Node, we instantiate the Node (abstract)
         // superclass, identifying itself as a leaf.
         super(order, NodeType.INTERNAL);
-
+        this.children = new Node[this.order+1];
         // An INode needs to instantiate the children array
+
+        // iitial setup is always from a split node...
+        // what is a parent but for the children?
+        this.children[0] = split.left;
+        this.children[1] = split.right;
+        this.keys[0] = split.key;
+
+        // set split children's parent
+        this.children[0].setParent(this);
+        this.children[1].setParent(this);
+        this.numChildren = 2;
     }
+
+
+    Integer search(Integer key) {
+        for (Integer i = 0; i < this.numChildren - 1; i++) {
+            if (keys[i] >= key) {
+                return i;
+            }
+        }
+        return this.numChildren - 1;
+    }
+
+
+    public Integer get(Integer key){
+        Integer idx =search(key);
+
+        if ((idx == this.numChildren-1) || (key < keys[idx])) {
+            return children[idx].get(key);
+        }
+        else if (key == keys[idx]) {
+            return children[idx + 1].get(key);
+        }
+        return null;
+    }
+
+    Split<INode> split() {
+        Integer mid = this.mid();
+        INode right = new INode(this.order);
+
+        Integer num = this.numChildren - mid;
+        System.arraycopy(keys, mid, right.keys, 0, num - 1);
+        System.arraycopy(children, mid, right.children, 0, num);
+        for (Integer i = 0; i < num; i++) {
+            right.children[i].parent = right;
+        }
+
+        right.numChildren = num;
+        this.numChildren = mid;
+
+        this.rightSibling = right;
+
+        Split<INode> split = new Split<INode>(keys[mid-1], this, right);
+
+        this.cleanEntries();
+        right.cleanEntries();
+
+        return split;
+    }
+
+    Split<INode> insertSplit(Split to_insert) {
+
+        Integer key = to_insert.key;
+        Integer idx = this.search(key);
+
+        Node new_child = to_insert.right;
+
+        // corner case
+        if (idx == this.numChildren-1) {
+            keys[this.numChildren-1] = key;
+            //System.out.println(Arrays.toString(children));
+            children[this.numChildren] = new_child;
+            children[this.numChildren-1].setRightSibling(new_child);
+        }
+        else {
+            Integer num = this.numChildren-idx-1;
+            System.arraycopy(keys, idx, keys, idx+1, num);
+            System.arraycopy(children, idx+1, children, idx+2, num);
+            keys[idx] = key;
+            children[idx+1] = new_child;
+            children[idx].setRightSibling(new_child);
+            new_child.setRightSibling(children[idx+2]);
+        }
+
+        new_child.parent = this;
+        this.numChildren++;
+
+        if (this.numChildren > this.order) {
+            return this.split();
+        }
+
+        return null;
+
+    }
+
+    public Split insert(Integer key, Integer value) {
+
+        Integer idx = this.search(key);
+
+        Split split = null;
+
+        //corner case
+        if ((idx == this.numChildren-1) || (key < keys[idx])) {
+            split = children[idx].insert(key, value);
+        }
+
+        //in the case key between two different key
+        else if (key == keys[idx]) {
+            split = children[idx + 1].insert(key, value);
+        }
+
+        if (split == null) {
+            return null;
+        }
+        else {
+            return insertSplit(split);
+        }
+
+    }
+
+    void cleanEntries() {
+        for (Integer i = 0; i < this.order+1; ++i) {
+            if (i < this.numChildren) {
+                continue;
+            }
+            else {
+                keys[i-1] = null;
+                children[i] = null;
+            }
+        }
+    }
+
+    public void delete(Integer key) {
+        Integer idx = this.search(key);
+
+        // Order here matters - idx could be at the end of the array where the
+        // value COULD be null...
+        if ((idx == this.numChildren-1) || (key < keys[idx])) {
+            children[idx].delete(key);
+        }
+
+        // keys point to references corresponsing to >= to...
+        // alternatively, idx could be at the end of the key list (the key >
+        // max key in node)
+        else if (key == keys[idx]) {
+            children[idx + 1].delete(key);
+        }
+    }
+
+
+
 }
 
 // This is potentially encapsulates the resulting information after a node
