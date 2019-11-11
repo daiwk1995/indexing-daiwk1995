@@ -3,12 +3,17 @@ import java.util.*;
 // DO NOT CHANGE THE METHOD SIGNATURE FOR THE METHODS WE GIVE YOU BUT YOU MAY
 // CHANGE THE METHOD'S IMPLEMENTATION
 
-class idx_pair {
+class Pair implements Comparable<Pair> {
     public Integer key;
     public Integer value;
-    public idx_pair(Integer key, Integer value){
-        this.key = key;
-        this.value = value;
+    public Pair(Integer k, Integer v) {
+        this.key = k;
+        this.value = v;
+    }
+
+    @Override
+    public int compareTo(Pair second) {
+        return this.key.compareTo(second.key);
     }
 }
 
@@ -18,6 +23,8 @@ public class Table {
     Hashtable<String, Column> attributes;
     Vector<Boolean> valid;
 
+    BPlusTree clustered_index = new BPlusTree(10);
+    BPlusTree second_index = new BPlusTree(10,true);
     public Table(String table_name, HashSet<String> attribute_names) {
         name = table_name;
         attributes = new Hashtable<String, Column>();
@@ -30,15 +37,17 @@ public class Table {
 
     public void setClusteredIndex(String attribute) {
         Column old_col = attributes.get(attribute);
-        idx_pair[] original = new idx_pair[old_col.size()];
+        Pair[] original = new Pair[old_col.size()];
         for(Integer i = 0; i < old_col.size(); i++){
-            original[i] = new idx_pair(old_col.get(i), i);
+            original[i] = new Pair(old_col.get(i), i);
         }
-        original.sort(Comparator.comparingInt(a -> a.key));
+
+        Arrays.sort(original);
         Column new_col = new Column();
         new_col.setSize(old_col.size());
-        Hashtable<Integer, Integer> new_to_old;
-        for(Intger i = 0; i < old_col.size(); i++){
+        HashMap<Integer, Integer> new_to_old = new HashMap<>();
+
+        for(Integer i = 0; i < old_col.size(); i++){
             new_to_old.put(i,original[i].value);
             new_col.set(i, original[i].key);
         }
@@ -46,7 +55,7 @@ public class Table {
         attributes.replace(attribute,new_col);
 
         for (String attribute_name : attributes.keySet()) {
-            if (att_name.equals(attribute)){
+            if (attribute_name.equals(attribute)){
                 continue;
             }
             Column other_attribute = attributes.get(attribute_name);
@@ -59,7 +68,7 @@ public class Table {
             attributes.replace(attribute_name, temp);
         }
 
-        pre = null;
+        Integer pre = null;
         for (Integer i = 0; i < new_col.size(); i++) {
             if (!new_col.get(i).equals(pre)) {
                 clustered_index.insert(new_col.get(i), i);
@@ -69,7 +78,12 @@ public class Table {
 
 
     }
-    public void setSecondaryIndex(String attribute) { }
+    public void setSecondaryIndex(String attribute) {
+        Column old_col = attributes.get(attribute);
+        for(Integer i = 0; i < old_col.size(); i++){
+            second_index.insert(old_col.get(i),i);
+        }
+    }
 
     // Insert a tuple into the Table
     public void insert(Tuple tuple) {

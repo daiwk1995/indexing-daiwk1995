@@ -9,6 +9,7 @@ public class BPlusTree {
     // A tree has a root node, and an order
     public Node root;
     public Integer order;
+    public boolean isS;
 
     // Required methods to implement. DO NOT change the function signatures of
     // these methods.
@@ -17,12 +18,28 @@ public class BPlusTree {
     public BPlusTree(Integer order) {
         this.order = order;
         this.root = new LNode(order);
+        this.isS = false;
+    }
+
+    public BPlusTree(Integer order, boolean isS) {
+        this.order = order;
+        this.isS = isS;
+        if(this.isS) {
+            this.root = new SNode(order);
+        }
+        else {
+            this.root = new LNode(order);
+        }
     }
 
     // Given a key, returns the value associated with that key or null if doesnt
     // exist
     public Integer get(Integer key) {
         return this.root.get(key);
+    }
+
+    public TupleIDSet getSecondary(Integer key) {
+        return this.root.getSecondary(key);
     }
 
     // Insert a key-value pair into the tree. This tree does not need to support
@@ -93,7 +110,6 @@ abstract class Node {
     // You may edit everything that occurs in this class below this line.
     // *********************************************************************
     public Integer order;
-    public INode parent;
     public Node rightSibling;
     public NodeType nt;
     // Both leaves and nodes need to keep track of a few things:
@@ -104,14 +120,10 @@ abstract class Node {
     public Node(Integer order, NodeType nt) {
         this.order = order;
         this.numChildren = 0;
-        this.parent = null;
         this.keys = new Integer[order];
         this.nt = nt;
     }
 
-    public void setParent(INode node){
-        this.parent = node;
-    }
 
     public Integer mid(){
         return this.order/2;
@@ -158,6 +170,7 @@ abstract class Node {
     // method and returns the integer up the recursion.
     abstract Integer get(Integer key);
 
+    abstract TupleIDSet getSecondary(Integer key);
     // You might want to implement a helper function that cleans up a node. Note
     // that the keys, values, and children of a node should be null if it is
     // invalid. Java's memory manager won't garbage collect if there are
@@ -222,6 +235,10 @@ class LNode extends Node {
                 return this.values[i];
             }
         }
+        return null;
+    }
+
+    public TupleIDSet getSecondary(Integer key){
         return null;
     }
 
@@ -348,10 +365,6 @@ class INode extends Node {
         this.children[0] = split.left;
         this.children[1] = split.right;
         this.keys[0] = split.key;
-
-        // set split children's parent
-        this.children[0].setParent(this);
-        this.children[1].setParent(this);
         this.numChildren = 2;
     }
 
@@ -378,6 +391,10 @@ class INode extends Node {
         return null;
     }
 
+    public TupleIDSet getSecondary(Integer key){
+        return null;
+    }
+
     Split<INode> split() {
         Integer mid = this.mid();
         INode right = new INode(this.order);
@@ -385,9 +402,6 @@ class INode extends Node {
         Integer num = this.numChildren - mid;
         System.arraycopy(keys, mid, right.keys, 0, num - 1);
         System.arraycopy(children, mid, right.children, 0, num);
-        for (Integer i = 0; i < num; i++) {
-            right.children[i].parent = right;
-        }
 
         right.numChildren = num;
         this.numChildren = mid;
@@ -426,7 +440,6 @@ class INode extends Node {
             new_child.setRightSibling(children[idx+2]);
         }
 
-        new_child.parent = this;
         this.numChildren++;
 
         if (this.numChildren > this.order) {
@@ -491,9 +504,142 @@ class INode extends Node {
         }
     }
 
+}
+//a type of leaf node only will be used for second index
+class SNode extends Node {
+
+    // DO NOT edit this attribute. You should use to store the values in your
+    // leaf node. Our checks for correctness rely on this attribute. If you
+    // change it, your tree will not be correct according to our checker. Values
+    // in this array that are not valid should be null.
+    public TupleIDSet[]values;
+    //    Integer level;
+    // DO NOT edit this method;
+    public NodeType nodeType() { return NodeType.LEAF; }
+
+    // You may edit everything that occurs in this class below this line.
+    // *************************************************************************
+
+    public SNode(Integer order) {
+
+        // Because this is also a Node, we instantiate the Node (abstract)
+        // superclass, identifying itself as a leaf.
+        super(order, NodeType.LEAF);
+        this.values = new TupleIDSet[order];
+        this.rightSibling = null;
+        // A leaf needs to instantiate the values array.
+    }
+
+    public Integer search(Integer key){
+        for (Integer i = 0; i < this.numChildren; i++) {
+            if (keys[i] >= key) {
+                return i;
+            }
+        }
+        return this.numChildren;
+    }
+
+    Split<SNode> split() {
+        SNode right = new SNode(this.order);
+        Integer mid = this.mid();
+        Integer num = this.numChildren - mid;
+        System.arraycopy(this.keys, mid, right.keys, 0, num);
+        System.arraycopy(this.values, mid, right.values, 0, num);
+
+        right.numChildren = num;
+        this.numChildren = mid;
+
+        if (this.rightSibling != null) {
+            right.setRightSibling(this.rightSibling);
+        }
+        this.setRightSibling(right);
+
+        Split<SNode> split = new Split<SNode>(keys[mid], this, right);
+
+        this.cleanEntries();
+        right.cleanEntries();
+        return split;
+    }
+
+
+    Split insert(Integer key, Integer value) {
+        Integer idx = search(key);
+
+        // if idx not in keys, we just add a new key and value;
+        if (idx == this.numChildren) {
+            this.keys[idx] = key;
+            this.values[idx] = new TupleIDSet();
+            this.values[idx].add(value);
+            this.numChildren++;
+        }
+
+        // if key already in the array, replace the value;
+        else if (keys[idx] == key) { values[idx].add(value); }
+
+        // if the key not in array and key < keys[idx],shift it
+        else {
+
+            Integer num = this.numChildren - idx;
+            System.arraycopy(keys, idx, keys, idx + 1, num);
+            System.arraycopy(values, idx, values, idx + 1, num);
+
+            this.keys[idx] = key;
+            this.values[idx] = new TupleIDSet();
+            this.values[idx].add(value);
+            this.numChildren++;
+        }
+
+        if (this.numChildren == this.order) {
+            return this.split();
+        }
+
+        return null;
+    }
+
+    //keep the array and clean it
+    public void cleanEntries() {
+        for (Integer i = 0; i < this.order; i++) {
+            if (i < this.numChildren) { continue; }
+            else {
+                keys[i] = null;
+                values[i] = null;
+            }
+        }
+    }
+
+    //delete the key and value in the array
+    public void delete(Integer key) {
+        Integer idx = this.search(key);
+
+        if (keys[idx] != key) {
+            return;
+        }
+
+        Integer num = this.numChildren - (idx + 1);
+        System.arraycopy(keys, idx+1, keys, idx, num);
+        System.arraycopy(values, idx+1, values, idx, num);
+        this.numChildren--;
+
+        this.cleanEntries();
+    }
+
+    public Integer get(Integer key) {
+        return null;
+
+    }
+
+    public TupleIDSet getSecondary(Integer key) {
+        for (Integer i = 0; i < this.numChildren; i++) {
+            if (this.keys[i] == key) {
+                return this.values[i];
+            }
+        }
+        return null;
+    }
 
 
 }
+
 
 // This is potentially encapsulates the resulting information after a node
 // splits. This is might help when passing split information from the split
