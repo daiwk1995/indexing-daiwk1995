@@ -11,7 +11,6 @@ class Pair implements Comparable<Pair> {
         this.value = v;
     }
 
-    @Override
     public int compareTo(Pair second) {
         return this.key.compareTo(second.key);
     }
@@ -206,7 +205,30 @@ public class Table {
             }
         }
         */
-        
+        int counter = 0;
+
+        if ((f.low != null) && (f.high != null)) {
+            for (int v : col) {
+                if ((v >= f.low) && (v <= f.high) && valid.get(counter)) {
+                    result.add(counter);
+                }
+                counter++;
+            }
+        } else if (f.low != null) {
+            for (int v : col) {
+                if ((v >= f.low) && valid.get(counter)) {
+                    result.add(counter);
+                }
+                counter++;
+            }
+        } else if (f.high != null) {
+            for (int v : col) {
+                if ((v <= f.high) && valid.get(counter)) {
+                    result.add(counter);
+                }
+                counter++;
+            }
+        }
         return result;
 
     }

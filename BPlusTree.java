@@ -64,6 +64,8 @@ public class BPlusTree {
         TupleIDSet result = new TupleIDSet();
         Integer lower = this.root.rangeGetLowerBound(lowerBound);
         Integer upper = this.root.rangeGetUpperBound(upperBound);
+        System.out.println(lower);
+        System.out.println(upper);
         if(lower == null) {
             return result;
         }
@@ -256,12 +258,17 @@ class LNode extends Node {
 
     // search the idx for the new key
     public Integer search(Integer key){
-        for (Integer i = 0; i < this.numChildren; i++) {
-            if (keys[i] >= key) {
-                return i;
+        int l = 0, r = this.numChildren;
+        while(l < r){
+            int mid = (l + r)/2;
+            if (keys[mid] < key){
+                l = mid+1;
+            }
+            else{
+                r = mid;
             }
         }
-        return this.numChildren;
+        return l;
     }
 
     public Integer get(Integer key){
@@ -457,12 +464,17 @@ class INode extends Node {
 
 
     Integer search(Integer key) {
-        for (Integer i = 0; i < this.numChildren - 1; i++) {
-            if (keys[i] >= key) {
-                return i;
+        int l = 0, r = this.numChildren-1;
+        while(l < r){
+            int mid = (l + r)/2;
+            if (keys[mid] < key){
+                l = mid+1;
+            }
+            else{
+                r = mid;
             }
         }
-        return this.numChildren - 1;
+        return l;
     }
 
 
@@ -649,12 +661,17 @@ class SNode extends Node {
     }
 
     public Integer search(Integer key){
-        for (Integer i = 0; i < this.numChildren; i++) {
-            if (keys[i] >= key) {
-                return i;
+        int l = 0, r = this.numChildren;
+        while(l < r){
+            int mid = (l + r)/2;
+            if (keys[mid] < key){
+                l = mid+1;
+            }
+            else{
+                r = mid;
             }
         }
-        return this.numChildren;
+        return l;
     }
 
     Split<SNode> split() {
