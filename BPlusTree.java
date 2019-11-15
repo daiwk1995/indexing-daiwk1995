@@ -60,6 +60,39 @@ public class BPlusTree {
         }
     }
 
+    public TupleIDSet clusterIndexRangeQuery(Integer lowerBound, Integer upperBound, Integer maxID){
+        TupleIDSet result = new TupleIDSet();
+        Integer lower = this.root.rangeGetLowerBound(lowerBound);
+        Integer upper = this.root.rangeGetUpperBound(upperBound);
+        if(lower == null) {
+            return result;
+        }
+        Integer loopUpperBound = upper == null ? maxID : upper;
+
+        for(int i = lower ; i < loopUpperBound; i++) {
+            result.add(i);
+        }
+        return result;
+
+    }
+
+    public TupleIDSet SecondIndexRangeQuery(Integer lowerBound, Integer upperBound){
+        Node startNode = this.root.rangeGetSecondary(lowerBound);
+        SNode cur = (SNode) startNode;
+        TupleIDSet result = new TupleIDSet();
+        while(cur != null){
+            for(int i =0 ; i < cur.numChildren; i++){
+                if(cur.keys[i] >= lowerBound && cur.keys[i] <= upperBound){
+                    result.addAll(cur.values[i]);
+                }
+            }
+            if(cur.keys[cur.numChildren - 1] < upperBound) {
+                cur = (SNode)cur.rightSibling;
+            }
+            else break;
+        }
+        return result;
+    }
     // Optional methods to write
     // This might be a helpful function for your debugging needs
     // public void print() { }
@@ -110,8 +143,8 @@ abstract class Node {
     // You may edit everything that occurs in this class below this line.
     // *********************************************************************
     public Integer order;
-    public Node rightSibling;
     public NodeType nt;
+    public Node rightSibling;
     // Both leaves and nodes need to keep track of a few things:
     //      their parent
     //      a way to tell another class whether it is a leaf or a node
@@ -133,9 +166,6 @@ abstract class Node {
         return this.nt;
     }*/
 
-    void setRightSibling(Node r){
-        this.rightSibling = r;
-    }
 
     // A few things both leaves and internal nodes need to do. You are likely
     // going to need to implement these functions. Our correctness checks rely
@@ -176,6 +206,12 @@ abstract class Node {
     // invalid. Java's memory manager won't garbage collect if there are
     // references hanging about.
     abstract void cleanEntries();
+
+    abstract Integer rangeGetUpperBound(Integer key);
+
+    abstract Integer rangeGetLowerBound(Integer key);
+
+    abstract Node rangeGetSecondary(Integer key);
 }
 
 // A leaf node (LNode) is an instance of a Node
@@ -194,7 +230,6 @@ class LNode extends Node {
     // *************************************************************************
 
     // A leaf has siblings on the left and on the right.
-
     // A leaf node is instantiated with an order
     public LNode(Integer order) {
 
@@ -231,7 +266,7 @@ class LNode extends Node {
 
     public Integer get(Integer key){
         for (Integer i = 0; i < this.numChildren; i++) {
-            if (this.keys[i] == key) {
+            if (this.keys[i].equals(key)) {
                 return this.values[i];
             }
         }
@@ -254,9 +289,9 @@ class LNode extends Node {
         this.numChildren = mid;
 
         if (this.rightSibling != null) {
-            right.setRightSibling(this.rightSibling);
+            right.rightSibling = this.rightSibling;
         }
-        this.setRightSibling(right);
+        this.rightSibling = right;
 
         Split<LNode> split = new Split<LNode>(keys[mid], this, right);
 
@@ -277,7 +312,7 @@ class LNode extends Node {
         }
 
         // if key already in the array, replace the value;
-        else if (keys[idx] == key) { values[idx] = value; }
+        else if (keys[idx].equals(key)) { values[idx] = value; }
 
         // if the key not in array and key < keys[idx],shift it
         else {
@@ -321,6 +356,58 @@ class LNode extends Node {
         this.numChildren--;
 
         this.cleanEntries();
+    }
+
+    public Integer rangeGetUpperBound(Integer key){
+        Integer idx = search(key);
+        if(idx == this.numChildren){
+            if(this.rightSibling == null) {
+                return null;
+            }
+            else {
+                LNode tmp = (LNode)this.rightSibling;
+                return tmp.values[0];
+            }
+        }
+        if(keys[idx].equals(key)){
+            if(idx == this.numChildren - 1){
+                if(this.rightSibling != null) {
+                    //System.out.println('5');
+                    LNode tmp = (LNode)this.rightSibling;
+                    return tmp.values[0];
+                }
+                else {
+                    //System.out.println('2');
+                    return null;
+                }
+            }
+            else{
+                //System.out.println('3');
+                return this.values[idx + 1];
+            }
+
+        }
+        //System.out.println('4');
+        return this.values[idx];
+    }
+
+    public Integer rangeGetLowerBound(Integer key){
+        Integer idx = search(key);
+
+        if(idx == this.numChildren){
+            if(this.rightSibling == null){
+                return null;
+            }
+            else {
+                LNode tmp = (LNode)this.rightSibling;
+                return tmp.values[0];
+            }
+        }
+
+        return this.values[idx];
+    }
+    public Node rangeGetSecondary(Integer key){
+        return null;
     }
 }
 
@@ -385,7 +472,7 @@ class INode extends Node {
         if ((idx == this.numChildren-1) || (key < keys[idx])) {
             return children[idx].get(key);
         }
-        else if (key == keys[idx]) {
+        else if (keys[idx].equals(key)) {
             return children[idx + 1].get(key);
         }
         return null;
@@ -428,7 +515,7 @@ class INode extends Node {
             keys[this.numChildren-1] = key;
             //System.out.println(Arrays.toString(children));
             children[this.numChildren] = new_child;
-            children[this.numChildren-1].setRightSibling(new_child);
+            children[this.numChildren-1].rightSibling = new_child;
         }
         else {
             Integer num = this.numChildren-idx-1;
@@ -436,8 +523,8 @@ class INode extends Node {
             System.arraycopy(children, idx+1, children, idx+2, num);
             keys[idx] = key;
             children[idx+1] = new_child;
-            children[idx].setRightSibling(new_child);
-            new_child.setRightSibling(children[idx+2]);
+            children[idx].rightSibling = new_child;
+            new_child.rightSibling = children[idx+2];
         }
 
         this.numChildren++;
@@ -462,7 +549,7 @@ class INode extends Node {
         }
 
         //in the case key between two different key
-        else if (key == keys[idx]) {
+        else if (keys[idx].equals(key)) {
             split = children[idx + 1].insert(key, value);
         }
 
@@ -499,9 +586,42 @@ class INode extends Node {
         // keys point to references corresponsing to >= to...
         // alternatively, idx could be at the end of the key list (the key >
         // max key in node)
-        else if (key == keys[idx]) {
+        else if (keys[idx].equals(key)) {
             children[idx + 1].delete(key);
         }
+    }
+
+    public Integer rangeGetLowerBound(Integer key) {
+
+        Integer idx = search(key);
+        if(idx == this.numChildren - 1 || keys[idx] > key){
+            return children[idx].rangeGetLowerBound(key);
+        }else if(keys[idx].equals(key)){
+            return children[idx + 1].rangeGetLowerBound(key);
+        }
+        return null;
+    }
+
+    public Integer rangeGetUpperBound(Integer key) {
+
+        Integer idx = search(key);
+        if(idx == this.numChildren - 1 || keys[idx] > key){
+            return children[idx].rangeGetUpperBound(key);
+        }else if(keys[idx].equals(key)){
+            return children[idx + 1].rangeGetUpperBound(key);
+        }
+        return null;
+    }
+
+    Node rangeGetSecondary(Integer key) {
+        Integer idx = search(key);
+
+        if(idx == this.numChildren - 1 || keys[idx] > key){
+            return children[idx].rangeGetSecondary(key);
+        }else if(keys[idx].equals(key)){
+            return children[idx + 1].rangeGetSecondary(key);
+        }
+        return null;
     }
 
 }
@@ -518,8 +638,6 @@ class SNode extends Node {
     public NodeType nodeType() { return NodeType.LEAF; }
 
     // You may edit everything that occurs in this class below this line.
-    // *************************************************************************
-
     public SNode(Integer order) {
 
         // Because this is also a Node, we instantiate the Node (abstract)
@@ -550,9 +668,9 @@ class SNode extends Node {
         this.numChildren = mid;
 
         if (this.rightSibling != null) {
-            right.setRightSibling(this.rightSibling);
+            right.rightSibling = this.rightSibling;
         }
-        this.setRightSibling(right);
+        this.rightSibling = right;
 
         Split<SNode> split = new Split<SNode>(keys[mid], this, right);
 
@@ -574,7 +692,7 @@ class SNode extends Node {
         }
 
         // if key already in the array, replace the value;
-        else if (keys[idx] == key) { values[idx].add(value); }
+        else if (keys[idx].equals(key)) { values[idx].add(value); }
 
         // if the key not in array and key < keys[idx],shift it
         else {
@@ -630,11 +748,28 @@ class SNode extends Node {
 
     public TupleIDSet getSecondary(Integer key) {
         for (Integer i = 0; i < this.numChildren; i++) {
-            if (this.keys[i] == key) {
+            if (this.keys[i].equals(key)) {
                 return this.values[i];
             }
         }
         return null;
+    }
+
+    public Integer rangeGetLowerBound(Integer key) {
+        return null;
+    }
+
+    public Integer rangeGetUpperBound(Integer key) {
+        return null;
+    }
+
+    public Node rangeGetSecondary(Integer key) {
+
+        Integer idx = search(key);
+        if(idx == this.numChildren){
+            return this.rightSibling;
+        }
+        return this;
     }
 
 

@@ -25,6 +25,10 @@ public class Table {
 
     BPlusTree clustered_index = new BPlusTree(10);
     BPlusTree second_index = new BPlusTree(10,true);
+    HashMap<Integer, HashSet<Integer>> HashIndex = new HashMap<>();
+    private String CIdex;
+    private String SIdex;
+    private String HIdex;
     public Table(String table_name, HashSet<String> attribute_names) {
         name = table_name;
         attributes = new Hashtable<String, Column>();
@@ -36,6 +40,7 @@ public class Table {
     }
 
     public void setClusteredIndex(String attribute) {
+        CIdex = attribute;
         Column old_col = attributes.get(attribute);
         Pair[] original = new Pair[old_col.size()];
         for(Integer i = 0; i < old_col.size(); i++){
@@ -79,9 +84,21 @@ public class Table {
 
     }
     public void setSecondaryIndex(String attribute) {
+        SIdex = attribute;
         Column old_col = attributes.get(attribute);
         for(Integer i = 0; i < old_col.size(); i++){
             second_index.insert(old_col.get(i),i);
+        }
+    }
+
+    public void sethashindex(String attribute){
+        HIdex = attribute;
+        Column old_col = attributes.get(attribute);
+        for(Integer i = 0; i < old_col.size(); i++){
+            if (HashIndex.get(old_col.get(i)) == null){
+                HashIndex.put(old_col.get(i),new HashSet<>());
+            }
+            HashIndex.get(old_col.get(i)).add(i);
         }
     }
 
@@ -96,6 +113,7 @@ public class Table {
             attributes.get(key).add(tuple.get(key));
         }
         valid.add(true);
+
     }
 
     // Loads each tuple into the Table
@@ -145,31 +163,52 @@ public class Table {
         }
 
         TupleIDSet result = new TupleIDSet();
-        int counter = 0;
-
-        if ((f.low != null) && (f.high != null)) {
-            for (int v : col) {
-                if ((v >= f.low) && (v <= f.high) && valid.get(counter)) {
-                    result.add(counter);
-                }
-                counter++;
-            }
-        } else if (f.low != null) {
-            for (int v : col) {
-                if ((v >= f.low) && valid.get(counter)) {
-                    result.add(counter);
-                }
-                counter++;
-            }
-        } else if (f.high != null) {
-            for (int v : col) {
-                if ((v <= f.high) && valid.get(counter)) {
-                    result.add(counter);
-                }
-                counter++;
+        if (CIdex == attribute) {
+            //System.out.println(attributes.get(attribute));
+            if ((f.low != null) && (f.high != null)) {
+                return clustered_index.clusterIndexRangeQuery(f.low, f.high, attributes.get(attribute).size());
+            } else if (f.low != null) {
+                return clustered_index.clusterIndexRangeQuery(f.low, Integer.MAX_VALUE,attributes.get(attribute).size());
+            } else if (f.high != null) {
+                return clustered_index.clusterIndexRangeQuery(Integer.MIN_VALUE, f.high,attributes.get(attribute).size());
             }
         }
+        if(SIdex == attribute){
+            if ((f.low != null) && (f.high != null)) {
+                return second_index.SecondIndexRangeQuery(f.low, f.high);
+            } else if (f.low != null) {
+                return second_index.SecondIndexRangeQuery(f.low, Integer.MAX_VALUE);
+            } else if (f.high != null) {
+                return second_index.SecondIndexRangeQuery(Integer.MIN_VALUE, f.high);
+            }
+        }
+
+        /*
+        if(HIex == attribute) {
+            if ((f.low != null) && (f.high != null)) {
+                for (int v : col) {
+                    if ((v >= f.low) && (v <= f.high) && HashIndex.get(v)) {
+                        result.addAll(HashIndex.get(v));
+                    }
+                }
+            } else if (f.low != null) {
+                for (int v : col) {
+                    if ((v >= f.low) && HashIndex.get(v)) {
+                        result.addAll(HashIndex.get(v));
+                    }
+                }
+            } else if (f.high != null) {
+                for (int v : col) {
+                    if ((v <= f.high) && HashIndex.get(v)) {
+                        result.addAll(HashIndex.get(v));
+                    }
+                }
+            }
+        }
+        */
+        
         return result;
+
     }
 
     // Deletes a set of tuple ids. If ids is null, deletes all tuples
